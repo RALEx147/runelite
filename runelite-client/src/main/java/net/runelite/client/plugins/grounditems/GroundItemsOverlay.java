@@ -31,12 +31,14 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.time.Instant;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import javax.inject.Inject;
+import net.runelite.api.Constants;
 import net.runelite.api.Client;
 import net.runelite.api.Perspective;
 import net.runelite.api.Player;
@@ -52,6 +54,7 @@ import net.runelite.client.ui.overlay.OverlayUtil;
 import net.runelite.client.ui.overlay.components.BackgroundComponent;
 import net.runelite.client.ui.overlay.components.TextComponent;
 import net.runelite.client.util.StackFormatter;
+import net.runelite.api.events.ItemSpawned;
 
 public class GroundItemsOverlay extends Overlay
 {
@@ -338,8 +341,53 @@ public class GroundItemsOverlay extends Overlay
 			textComponent.setPosition(new java.awt.Point(textX, textY));
 			textComponent.render(graphics);
 		}
+		if (config.dropTimer())
+		{
+			plugin.getItemDropTimer().forEach((Int, item) -> renderDropDespawnTimer(Int, item, graphics));
+		}
 
 		return null;
+	}
+
+	private void renderDropDespawnTimer(final Integer Int, final ItemSpawned itemS, final Graphics2D graphics)
+	{
+		final WorldPoint wp = itemS.getTile().getWorldLocation();
+		final LocalPoint lp = LocalPoint.fromWorld(client, wp.getX(), wp.getY());
+
+		if (lp == null)
+		{
+			return;
+		}
+
+		final Color color = Color.YELLOW;
+
+		final Polygon poly = Perspective.getCanvasTileAreaPoly(client, lp, 1);
+
+		if (poly != null)
+		{
+			OverlayUtil.renderPolygon(graphics, poly, color);
+		}
+
+		final Instant now = Instant.now();
+		final double baseTick = ((Int + 200) - client.getTickCount()) * (Constants.GAME_TICK_LENGTH / 1000.0);
+		final double sinceLast = (now.toEpochMilli() - plugin.getLastTickUpdate().toEpochMilli()) / 1000.0;
+		final double timeLeft = Math.max(0.0, baseTick - sinceLast);
+		final String timeLeftStr = String.valueOf(Math.round(timeLeft));
+
+		final int textWidth = graphics.getFontMetrics().stringWidth(timeLeftStr);
+		final int textHeight = graphics.getFontMetrics().getAscent();
+
+		final Point canvasPoint = Perspective
+				.localToCanvas(client, lp, wp.getPlane());
+
+		if (canvasPoint != null)
+		{
+			final Point canvasCenterPoint = new Point(
+					canvasPoint.getX() - textWidth / 2,
+					canvasPoint.getY() + textHeight / 2);
+
+			OverlayUtil.renderTextLocation(graphics, canvasCenterPoint, timeLeftStr, Color.WHITE);
+		}
 	}
 
 	private void drawRectangle(Graphics2D graphics, Rectangle rect, Color color, boolean inList, boolean hiddenBox)

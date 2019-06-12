@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
+import java.time.Instant;
 import javax.inject.Inject;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -57,6 +58,7 @@ import net.runelite.api.Node;
 import net.runelite.api.Player;
 import net.runelite.api.Scene;
 import net.runelite.api.Tile;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ClientTick;
 import net.runelite.api.events.ConfigChanged;
@@ -126,6 +128,12 @@ public class GroundItemsPlugin extends Plugin
 	@Getter(AccessLevel.PACKAGE)
 	@Setter(AccessLevel.PACKAGE)
 	private boolean hideAll;
+
+	@Getter(AccessLevel.PACKAGE)
+	private Instant lastTickUpdate;
+
+	@Getter(AccessLevel.PACKAGE)
+	private final Map<Integer, ItemSpawned> itemDropTimer = new HashMap<>();
 
 	private List<String> hiddenItemList = new CopyOnWriteArrayList<>();
 	private List<String> highlightedItemsList = new CopyOnWriteArrayList<>();
@@ -212,6 +220,24 @@ public class GroundItemsPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onGameTick(GameTick event)
+	{
+		removeOldHighlightedRespawns();
+		lastTickUpdate = Instant.now();
+	}
+
+	private void removeOldHighlightedRespawns()
+	{
+		for (Integer i : itemDropTimer.keySet())
+		{
+			if (i + 100 <= client.getTickCount() + 1)
+			{
+				itemDropTimer.remove(i);
+			}
+		}
+	}
+
+	@Subscribe
 	public void onItemSpawned(ItemSpawned itemSpawned)
 	{
 		Item item = itemSpawned.getItem();
@@ -235,6 +261,20 @@ public class GroundItemsPlugin extends Plugin
 		{
 			notifyHighlightedItem(groundItem);
 		}
+
+		if (config.dropTimer()) {
+			final ItemContainer itemContainer = client.getItemContainer(InventoryID.INVENTORY);
+			final Item[] items = itemContainer.getItems();
+			LocalPoint local = client.getLocalPlayer().getLocalLocation();
+			if (local.getX() == tile.getLocalLocation().getX() + 1 && local.getY() == tile.getLocalLocation().getY() + 1) {
+				for (Item i : items) {
+					if (i.getId() == item.getId()) {
+						itemDropTimer.put(client.getTickCount(), itemSpawned);
+					}
+				}
+			}
+
+		}
 	}
 
 	@Subscribe
@@ -257,6 +297,18 @@ public class GroundItemsPlugin extends Plugin
 		else
 		{
 			groundItem.setQuantity(groundItem.getQuantity() - item.getQuantity());
+		}
+
+		if (config.dropTimer())
+		{
+			for (Integer i : itemDropTimer.keySet())
+			{
+				if (tile.getLocalLocation().getX() == itemDropTimer.get(i).getTile().getLocalLocation().getX() && tile.getLocalLocation().getY() == itemDropTimer.get(i).getTile().getLocalLocation().getY()) {
+					if (itemDropTimer.get(i).getItem().getId() == item.getId()) {
+						itemDropTimer.remove(i);
+					}
+				}
+			}
 		}
 	}
 

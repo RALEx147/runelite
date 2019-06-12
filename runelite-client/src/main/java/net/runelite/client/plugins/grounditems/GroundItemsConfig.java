@@ -358,4 +358,15 @@ public interface GroundItemsConfig extends Config
 	{
 		return false;
 	}
+
+	@ConfigItem(
+			keyName = "dropTimer",
+			name = "Dropped item despawn timer",
+			description = "Show timer for player dropped items to despawn",
+			position = 28
+	)
+	default boolean dropTimer()
+	{
+		return false;
+	}
 }
